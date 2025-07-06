@@ -40,11 +40,17 @@ func main() {
 	}
 	c, err := loadAuthSession(ctx, username, password)
 
-	postTool := mcp.NewTool("post",
+	postTool := mcp.NewTool("createPost",
 		mcp.WithDescription("Make a Bluesky post"),
 		mcp.WithString("message",
 			mcp.Required(),
 			mcp.Description("The text contents of the post. Maximum length is 300 characters. Mentions (@bsky.app), links (https://google.com), and tags (#example) will be automatically detected and added as facets."),
+		),
+		mcp.WithString("replySubject",
+			mcp.Description("Accepts an at-uri. If provided, will create post as a reply top the provided uri."),
+		),
+		mcp.WithString("repostSubject",
+			mcp.Description("Accepts an at-uri. If provided, will quote post the provided uri (must be a post)."),
 		),
 	)
 
@@ -68,17 +74,76 @@ func main() {
 		return mcp.NewToolResultText(fmt.Sprintf("Successfully created post. CID: %s URI: %s", r.Cid, r.Uri)), nil
 	})
 
+	repostTool := mcp.NewTool("repost",
+		mcp.WithDescription("Repost a Bluesky post"),
+		mcp.WithString("repostSubject",
+			mcp.Required(),
+			mcp.Description("Accepts an at-uri. Must be a post. Will repost the provided uri."),
+		),
+	)
+
+	s.AddTool(repostTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		subj, err := request.RequireString("repostSubject")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		r, err := createRecord(ctx, c, makeRepost(ctx, c, subj))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error creating repost: %s", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully created repost. CID: %s URI: %s", r.Cid, r.Uri)), nil
+	})
+
+	deletePostTool := mcp.NewTool("deletePost",
+		mcp.WithDescription("Delete a Bluesky post"),
+		mcp.WithString("uri",
+			mcp.Required(),
+			mcp.Description("at-uri of post to delete. must be your own post."),
+		),
+	)
+
+	s.AddTool(deletePostTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		uri, err := request.RequireString("uri")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		parsed, err := parseURI(uri)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error parsing URI: %s", err)), nil
+		}
+
+		r, err := comatproto.RepoDeleteRecord(ctx, c, &comatproto.RepoDeleteRecord_Input{
+			Collection: parsed.collection,
+			Repo:       parsed.repo,
+			Rkey:       parsed.rkey,
+		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error deleting post: %s", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully deleted post. Commit CID: %s", r.Commit.Cid)), nil
+	})
+
 	notificationTool := mcp.NewTool("readNotifications",
-		mcp.WithDescription("Reads 50 most recent notifications"),
+		mcp.WithDescription("Reads notifications"),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through notifications. If not provided, will read the latest notifications."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of notifications to read. Default is 50."),
+		),
 	)
 
 	s.AddTool(notificationTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		r, err := appbsky.NotificationListNotifications(ctx, c, "", 50, false, nil, "")
+		cursor := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+		r, err := appbsky.NotificationListNotifications(ctx, c, cursor, int64(limit), false, nil, "")
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error reading notifications: %s", err)), nil
 		}
 
-		str := fmt.Sprintf("%d notifications:\n", len(r.Notifications))
+		str := fmt.Sprintf("%d notifications (cursor: %s):\n", len(r.Notifications), *r.Cursor)
 
 		for _, n := range r.Notifications {
 			if n.Reason == "like" {
@@ -112,7 +177,8 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
-	createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
+
+	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
 }
 
 type URI struct {
@@ -158,6 +224,30 @@ func makePost(ctx context.Context, c *xrpc.Client, m string) *comatproto.RepoCre
 	}
 
 	return p
+}
+
+func makeRepost(ctx context.Context, c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input {
+	uri, err := parseURI(subj)
+	if err != nil {
+		fmt.Println("Error parsing URI:", err)
+		return nil
+	}
+
+	r := &comatproto.RepoCreateRecord_Input{
+		Collection: "app.bsky.feed.repost",
+		Record: &lexutil.LexiconTypeDecoder{
+			Val: &appbsky.FeedRepost{
+				CreatedAt: syntax.DatetimeNow().String(),
+				Subject: &comatproto.RepoStrongRef{
+					Cid: uri.rkey,
+					Uri: subj,
+				},
+			},
+		},
+		Repo: c.Auth.Did,
+	}
+
+	return r
 }
 
 // need to get mentions, links, and tags
