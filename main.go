@@ -397,7 +397,6 @@ func makeRepost(c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input 
 	return r
 }
 
-// need to get mentions, links, and tags
 func getFacetsFromString(ctx context.Context, c *xrpc.Client, s string) []*appbsky.RichtextFacet {
 	fmt.Println("processing string for facets...")
 	lreg, _ := regexp.Compile(`https:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{2,6}\b(?:[-a-zA-Z0-9@:%_\+.~#?&//=]*)`)
