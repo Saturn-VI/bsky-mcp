@@ -5,10 +5,11 @@
  - [x] createRepost
  - [x] deletePost
  - [x] readNotifications
- - [ ] readFeed
+ - [x] readFeed
  - [ ] readListFeed
  - [ ] readUserFeed
  - [ ] readProfile
+ - [ ] listSavedFeeds
  - [ ] getFollowers
  - [ ] getFollowing
  - [ ] getTrending

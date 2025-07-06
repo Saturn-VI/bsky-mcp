@@ -177,14 +177,63 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
+	readFeedTool := mcp.NewTool("readFeed",
+		mcp.WithDescription("Reads a feed."),
+		mcp.WithString("feedUri",
+			mcp.Description("Optional feed URI to read. If a feed URI is not provided, it will read the home feed (Discover)."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+	)
+
+	s.AddTool(readFeedTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		feedUri := request.GetString("feedUri", "")
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+		var posts []*appbsky.FeedDefs_FeedViewPost
+		var cursor string
+
+		savedFeeds, err := getSavedFeeds(ctx, c)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting saved feeds: %s", err)), nil
+		}
+
+		if feedUri == "" {
+			// there's a builtin getTimeline
+			r, err := appbsky.FeedGetTimeline(ctx, c, "", cursorParam, int64(limit))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
+			}
+			posts = r.Feed
+			cursor = *r.Cursor
+		} else {
+			// read a specific feed
+			r, err := appbsky.FeedGetFeed(ctx, c, cursorParam, feedUri, int64(limit))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
+			}
+			posts = r.Feed
+			cursor = *r.Cursor
+		}
+
+		str := fmt.Sprintf("\"%s\" Feed (cursor: %s):\n", savedFeeds.Items[0].Value, cursor)
+
+		str += generateStringFromPosts(posts)
+
+		return mcp.NewToolResultText(str), nil
+	})
 
 	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
 }
 
 type URI struct {
-	repo string
+	repo       string
 	collection string
-	rkey string
+	rkey       string
 }
 
 func parseURI(uri string) (URI, error) {
@@ -341,4 +390,53 @@ func getFacetsFromString(ctx context.Context, c *xrpc.Client, s string) []*appbs
 	}
 
 	return facets
+}
+
+func getSavedFeeds(ctx context.Context, c *xrpc.Client) (*appbsky.ActorDefs_SavedFeedsPrefV2, error) {
+	r, err := appbsky.ActorGetPreferences(ctx, c)
+	if err != nil {
+		fmt.Println("Error getting saved feeds:", err)
+		return nil, err
+	}
+
+	// r.prefs probably won't be nil
+	for _, pref := range r.Preferences {
+		if pref.ActorDefs_SavedFeedsPrefV2 != nil {
+			return pref.ActorDefs_SavedFeedsPrefV2, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no saved feeds found") // hopefully never
+}
+
+func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
+	str := ""
+	for _, post := range posts {
+		if post.Reason.FeedDefs_ReasonPin != nil {
+			// timeline-type feeds can't have pins
+			continue
+		} else if post.Reason.FeedDefs_ReasonRepost != nil {
+			reposter := post.Reason.FeedDefs_ReasonRepost.By
+			str += fmt.Sprintf("%s (%s) reposted a post by %s (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
+				*reposter.DisplayName,
+				reposter.Did,
+				*post.Post.Author.DisplayName,
+				post.Post.Author.Did,
+				post.Post.Uri,
+				*post.Post.LikeCount,
+				*post.Post.QuoteCount,
+				*post.Post.ReplyCount,
+				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+		} else {
+			str += fmt.Sprintf("post by %s (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
+				*post.Post.Author.DisplayName,
+				post.Post.Author.Did,
+				post.Post.Uri,
+				*post.Post.LikeCount,
+				*post.Post.QuoteCount,
+				*post.Post.ReplyCount,
+				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+		}
+	}
+	return str
 }
