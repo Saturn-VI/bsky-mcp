@@ -511,13 +511,13 @@ func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 	str := ""
 	for _, post := range posts {
 		if post.Reason.FeedDefs_ReasonPin != nil {
-			str += fmt.Sprintf("Pinned post (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
+			str += fmt.Sprintf("Pinned post by %s (%s) with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
 				*post.Post.Author.DisplayName,
 				post.Post.Author.Did,
-				post.Post.Uri,
 				*post.Post.LikeCount,
 				*post.Post.QuoteCount,
 				*post.Post.ReplyCount,
+				post.Post.Uri,
 				post.Post.Record.Val.(*appbsky.FeedPost).Text)
 		} else if post.Reason.FeedDefs_ReasonRepost != nil {
 			reposter := post.Reason.FeedDefs_ReasonRepost.By
