@@ -88,7 +88,7 @@ func main() {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		r, err := createRecord(ctx, c, makeRepost(ctx, c, subj))
+		r, err := createRecord(ctx, c, makeRepost(c, subj))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error creating repost: %s", err)), nil
 		}
@@ -191,7 +191,10 @@ func main() {
 	)
 
 	s.AddTool(readFeedTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		feedUri := request.GetString("feedUri", "")
+		feedUri, err := request.RequireString("feedUri")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
 		cursorParam := request.GetString("cursor", "")
 		limit := request.GetInt("limit", 50)
 		var posts []*appbsky.FeedDefs_FeedViewPost
@@ -222,6 +225,101 @@ func main() {
 
 		str := fmt.Sprintf("\"%s\" Feed (cursor: %s):\n", savedFeeds.Items[0].Value, cursor)
 
+		str += generateStringFromPosts(posts)
+
+		return mcp.NewToolResultText(str), nil
+	})
+
+	readListFeedTool := mcp.NewTool("readListFeed",
+		mcp.WithDescription("Reads a feed."),
+		mcp.WithString("listUri",
+			mcp.Required(),
+			mcp.Description("URI of list to get feed from."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+	)
+
+	s.AddTool(readListFeedTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		listUri, err := request.RequireString("listUri")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+		var posts []*appbsky.FeedDefs_FeedViewPost
+		var cursor string
+
+		l, err := appbsky.GraphGetList(ctx, c, cursorParam, int64(limit), listUri)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting list: %s", err)), nil
+		}
+		listName := l.List.Name
+
+		r, err := appbsky.FeedGetListFeed(ctx, c, cursorParam, int64(limit), listUri)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
+		}
+		cursor = *r.Cursor
+		posts = r.Feed
+
+		str := fmt.Sprintf("Feed generated from list \"%s\" (cursor: %s):\n", listName, cursor)
+		str += generateStringFromPosts(posts)
+
+		return mcp.NewToolResultText(str), nil
+	})
+
+	readAuthorFeedTool := mcp.NewTool("readAuthorFeed",
+		mcp.WithDescription("Reads a feed."),
+		mcp.WithString("actor",
+			mcp.Required(),
+			mcp.Description("AT-identifier of the author to read the feed from. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+		mcp.WithString("filter",
+			mcp.Description("Optional filter to apply to the feed. ('posts_with_replies', 'posts_no_replies', 'posts_with_media', 'posts_and_author_threads', 'posts_with_video'). Default is 'posts_with_replies'."),
+			mcp.Enum("posts_with_replies", "posts_no_replies", "posts_with_media", "posts_and_author_threads", "posts_with_video"),
+		),
+		mcp.WithBoolean("includePins",
+			mcp.Description("Whether or not to include pinned posts."),
+		),
+	)
+
+	s.AddTool(readAuthorFeedTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		actor, err := request.RequireString("actor")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+		filter := request.GetString("filter", "posts_with_replies")
+		includePins := request.GetBool("includePins", false)
+		var posts []*appbsky.FeedDefs_FeedViewPost
+		var cursor string
+
+		a, err := appbsky.ActorGetProfile(ctx, c, actor)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting list: %s", err)), nil
+		}
+		userName := *a.DisplayName
+
+		r, err := appbsky.FeedGetAuthorFeed(ctx, c, actor, cursorParam, filter, includePins, int64(limit))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
+		}
+		cursor = *r.Cursor
+		posts = r.Feed
+
+		str := fmt.Sprintf("Feed generated from posts by actor \"%s\" (cursor: %s):\n", userName, cursor)
 		str += generateStringFromPosts(posts)
 
 		return mcp.NewToolResultText(str), nil
@@ -275,7 +373,7 @@ func makePost(ctx context.Context, c *xrpc.Client, m string) *comatproto.RepoCre
 	return p
 }
 
-func makeRepost(ctx context.Context, c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input {
+func makeRepost(c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input {
 	uri, err := parseURI(subj)
 	if err != nil {
 		fmt.Println("Error parsing URI:", err)
@@ -413,13 +511,7 @@ func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 	str := ""
 	for _, post := range posts {
 		if post.Reason.FeedDefs_ReasonPin != nil {
-			// timeline-type feeds can't have pins
-			continue
-		} else if post.Reason.FeedDefs_ReasonRepost != nil {
-			reposter := post.Reason.FeedDefs_ReasonRepost.By
-			str += fmt.Sprintf("%s (%s) reposted a post by %s (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
-				*reposter.DisplayName,
-				reposter.Did,
+			str += fmt.Sprintf("Pinned post (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
 				*post.Post.Author.DisplayName,
 				post.Post.Author.Did,
 				post.Post.Uri,
@@ -427,14 +519,26 @@ func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 				*post.Post.QuoteCount,
 				*post.Post.ReplyCount,
 				post.Post.Record.Val.(*appbsky.FeedPost).Text)
-		} else {
-			str += fmt.Sprintf("post by %s (DID %s) (URI %s) with %d likes, %d quotes, and %d replies: %s\n",
+		} else if post.Reason.FeedDefs_ReasonRepost != nil {
+			reposter := post.Reason.FeedDefs_ReasonRepost.By
+			str += fmt.Sprintf("%s (%s) reposted a post by %s (%s)  with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
+				*reposter.DisplayName,
+				reposter.Did,
 				*post.Post.Author.DisplayName,
 				post.Post.Author.Did,
-				post.Post.Uri,
 				*post.Post.LikeCount,
 				*post.Post.QuoteCount,
 				*post.Post.ReplyCount,
+				post.Post.Uri,
+				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+		} else {
+			str += fmt.Sprintf("Post by %s (DID %s) with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
+				*post.Post.Author.DisplayName,
+				post.Post.Author.Did,
+				*post.Post.LikeCount,
+				*post.Post.QuoteCount,
+				*post.Post.ReplyCount,
+				post.Post.Uri,
 				post.Post.Record.Val.(*appbsky.FeedPost).Text)
 		}
 	}

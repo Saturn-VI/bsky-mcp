@@ -6,8 +6,8 @@
  - [x] deletePost
  - [x] readNotifications
  - [x] readFeed
- - [ ] readListFeed
- - [ ] readUserFeed
+ - [x] readListFeed
+ - [x] readAuthorFeed
  - [ ] readProfile
  - [ ] listSavedFeeds
  - [ ] getFollowers
