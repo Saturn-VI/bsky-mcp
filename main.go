@@ -317,7 +317,11 @@ func main() {
 					fmt.Println("Error parsing URI:", err)
 					continue
 				}
-				likesubject, _ := comatproto.RepoGetRecord(ctx, c, like.Subject.Cid, uri.collection, uri.repo, uri.rkey)
+				likesubject, err := comatproto.RepoGetRecord(ctx, c, like.Subject.Cid, uri.collection, uri.repo, uri.rkey)
+				if err != nil {
+					fmt.Println("Error getting like subject:", err)
+					continue
+				}
 				str += fmt.Sprintf("%s (%s) liked your post (URI %s): %s\n", *n.Author.DisplayName, n.Author.Did, like.Subject.Uri, likesubject.Value.Val.(*appbsky.FeedPost).Text)
 			}
 			if n.Reason == "mention" {
@@ -366,7 +370,7 @@ func main() {
 		cursorParam := request.GetString("cursor", "")
 		limit := request.GetInt("limit", 50)
 		var posts []*appbsky.FeedDefs_FeedViewPost
-		var cursor string
+		var cursor string = ""
 
 		savedFeeds, err := getSavedFeeds(ctx, c)
 		if err != nil {
@@ -380,7 +384,9 @@ func main() {
 				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
 			}
 			posts = r.Feed
-			cursor = *r.Cursor
+			if (r.Cursor != nil) {
+				cursor = *r.Cursor
+			}
 		} else {
 			// read a specific feed
 			r, err := appbsky.FeedGetFeed(ctx, c, cursorParam, feedUri, int64(limit))
@@ -388,7 +394,9 @@ func main() {
 				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
 			}
 			posts = r.Feed
-			cursor = *r.Cursor
+			if (r.Cursor != nil) {
+				cursor = *r.Cursor
+			}
 		}
 
 		str := fmt.Sprintf("\"%s\" Feed (cursor: %s):\n", savedFeeds.Items[0].Value, cursor)
@@ -420,7 +428,7 @@ func main() {
 		cursorParam := request.GetString("cursor", "")
 		limit := request.GetInt("limit", 50)
 		var posts []*appbsky.FeedDefs_FeedViewPost
-		var cursor string
+		var cursor string = ""
 
 		l, err := appbsky.GraphGetList(ctx, c, cursorParam, int64(limit), listUri)
 		if err != nil {
@@ -432,7 +440,9 @@ func main() {
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
 		}
-		cursor = *r.Cursor
+		if (r.Cursor != nil) {
+			cursor = *r.Cursor
+		}
 		posts = r.Feed
 
 		str := fmt.Sprintf("Feed generated from list \"%s\" (cursor: %s):\n", listName, cursor)
@@ -472,7 +482,7 @@ func main() {
 		filter := request.GetString("filter", "posts_with_replies")
 		includePins := request.GetBool("includePins", false)
 		var posts []*appbsky.FeedDefs_FeedViewPost
-		var cursor string
+		var cursor string = ""
 
 		a, err := appbsky.ActorGetProfile(ctx, c, actor)
 		if err != nil {
@@ -484,7 +494,9 @@ func main() {
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
 		}
-		cursor = *r.Cursor
+		if (r.Cursor != nil) {
+			cursor = *r.Cursor
+		}
 		posts = r.Feed
 
 		str := fmt.Sprintf("Feed generated from posts by actor \"%s\" (cursor: %s):\n", userName, cursor)
@@ -804,10 +816,14 @@ func getSavedFeeds(ctx context.Context, c *xrpc.Client) (*appbsky.ActorDefs_Save
 		fmt.Println("Error getting saved feeds:", err)
 		return nil, err
 	}
-
-	// r.prefs probably won't be nil
+	if len(r.Preferences) == 0 {
+		return nil, fmt.Errorf("no preferences found")
+	}
 	for _, pref := range r.Preferences {
 		if pref.ActorDefs_SavedFeedsPrefV2 != nil {
+			if len(pref.ActorDefs_SavedFeedsPrefV2.Items) == 0 {
+				return nil, fmt.Errorf("no saved feeds found in preferences")
+			}
 			return pref.ActorDefs_SavedFeedsPrefV2, nil
 		}
 	}
