@@ -10,8 +10,8 @@
  - [x] readAuthorFeed
  - [x] readProfile
  - [x] listSavedFeeds
- - [ ] getFollowers
- - [ ] getFollowing
+ - [x] getFollowers
+ - [x] getFollowing
  - [ ] getTrending
  - [ ] searchPosts
  - [ ] searchUsers

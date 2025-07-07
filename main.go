@@ -396,6 +396,76 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
+	getFollowersTool := mcp.NewTool("getFollowers",
+		mcp.WithDescription("Gets followers of a Bluesky actor."),
+		mcp.WithString("actor",
+			mcp.Required(),
+			mcp.Description("AT-identifier of the actor to get followers from. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+	)
+
+	s.AddTool(getFollowersTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		actor, err := request.RequireString("actor")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+
+		followers, err := appbsky.GraphGetFollowers(ctx, c, actor, cursorParam, int64(limit))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting followers: %s", err)), nil
+		}
+
+		str := fmt.Sprintf("Followers of %s (%s):\n", *followers.Subject.DisplayName, followers.Subject.Did)
+		for _, follower := range followers.Followers {
+			str += fmt.Sprintf("%s (%s) — %s\n", *follower.DisplayName, follower.Did, *follower.Description)
+		}
+
+		return mcp.NewToolResultText(str), nil
+	})
+
+	getFollowingTool := mcp.NewTool("getFollowing",
+		mcp.WithDescription("Gets those who a Bluesky actor follows."),
+		mcp.WithString("actor",
+			mcp.Required(),
+			mcp.Description("AT-identifier of the actor to get followers from. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+	)
+
+	s.AddTool(getFollowingTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		actor, err := request.RequireString("actor")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+
+		following, err := appbsky.GraphGetFollows(ctx, c, actor, cursorParam, int64(limit))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting followers: %s", err)), nil
+		}
+
+		str := fmt.Sprintf("Followers of %s (%s):\n", *following.Subject.DisplayName, following.Subject.Did)
+		for _, follow := range following.Follows {
+			str += fmt.Sprintf("%s (%s) — %s\n", *follow.DisplayName, follow.Did, *follow.Description)
+		}
+
+		return mcp.NewToolResultText(str), nil
+	})
+
 	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
 }
 
