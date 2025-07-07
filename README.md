@@ -9,7 +9,7 @@
  - [x] readListFeed
  - [x] readAuthorFeed
  - [x] readProfile
- - [ ] listSavedFeeds
+ - [x] listSavedFeeds
  - [ ] getFollowers
  - [ ] getFollowing
  - [ ] getTrending

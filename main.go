@@ -369,6 +369,33 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
+	listSavedFeedsTool := mcp.NewTool("listSavedFeeds",
+		mcp.WithDescription("Lists saved feeds."),
+	)
+
+	s.AddTool(listSavedFeedsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		savedFeeds, err := getSavedFeeds(ctx, c)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting saved feeds: %s", err)), nil
+		}
+
+		str := "Saved Feeds:\n"
+		for _, item := range savedFeeds.Items {
+			feedGen, err := appbsky.FeedGetFeedGenerator(ctx, c, item.Value)
+			if err != nil {
+				fmt.Printf("Error getting feed generator: %s\n", err.Error())
+				continue
+			}
+			isOnline := "Currently online"
+			if !feedGen.IsOnline {
+				isOnline = "Currently offline"
+			}
+			str += fmt.Sprintf("%s URI: %s, (%s, %d likes) — %s", feedGen.View.DisplayName, feedGen.View.Uri, isOnline, *feedGen.View.LikeCount, *feedGen.View.Description)
+		}
+
+		return mcp.NewToolResultText(str), nil
+	})
+
 	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
 }
 
