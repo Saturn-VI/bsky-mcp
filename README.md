@@ -6,8 +6,8 @@
  - [x] deletePost
  - [x] likePost
  - [x] unlikePost
- - [ ] followUser
- - [ ] unfollowUser
+ - [x] followUser
+ - [x] unfollowUser
  - [x] readNotifications
  - [x] readFeed
  - [x] readListFeed

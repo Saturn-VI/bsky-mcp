@@ -152,7 +152,7 @@ func main() {
 			},
 		}
 		r, err := comatproto.RepoCreateRecord(ctx, c, &comatproto.RepoCreateRecord_Input{
-			Collection: "app.bsky.feed.like",
+			Collection: like.LexiconTypeID,
 			Record: &lexutil.LexiconTypeDecoder{
 				Val: like,
 			},
@@ -203,6 +203,73 @@ func main() {
 			return mcp.NewToolResultError(fmt.Sprintf("Error deleting like: %s", err)), nil
 		}
 		return mcp.NewToolResultText(fmt.Sprintf("Successfully unliked post. Commit CID: %s", r.Commit.Cid)), nil
+	})
+
+	followUserTool := mcp.NewTool("followUser",
+		mcp.WithDescription("Follow a Bluesky user"),
+		mcp.WithString("did",
+			mcp.Required(),
+			mcp.Description("DID of the user to follow. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+	)
+
+	s.AddTool(followUserTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		did, err := request.RequireString("did")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		follow := &appbsky.GraphFollow{
+			CreatedAt: syntax.DatetimeNow().String(),
+			Subject: did,
+		}
+		r, err := comatproto.RepoCreateRecord(ctx, c, &comatproto.RepoCreateRecord_Input{
+			Collection: follow.LexiconTypeID,
+			Record: &lexutil.LexiconTypeDecoder{
+				Val: follow,
+			},
+			Repo: c.Auth.Did,
+		})
+
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully followed user. Commit CID: %s", r.Commit.Cid)), nil
+	})
+
+	unfollowUserTool := mcp.NewTool("unfollowUser",
+		mcp.WithDescription("Unfollow a Bluesky user"),
+		mcp.WithString("did",
+			mcp.Required(),
+			mcp.Description("DID of the user to unfollow. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+	)
+
+	s.AddTool(unfollowUserTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		did, err := request.RequireString("did")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		user, err := appbsky.ActorGetProfile(ctx, c, did)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting user profile: %s", err)), nil
+		}
+		if user.Viewer.Following == nil {
+			return mcp.NewToolResultError(fmt.Sprintf("You are not following user: %s", did)), nil
+		}
+		follow := user.Viewer.Following
+
+		parsed, err := parseURI(*follow)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error parsing follow URI: %s", err)), nil
+		}
+		r, err := comatproto.RepoDeleteRecord(ctx, c, &comatproto.RepoDeleteRecord_Input{
+			Collection: parsed.collection,
+			Repo:       parsed.repo,
+			Rkey:       parsed.rkey,
+		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error deleting follow: %s", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully unfollowed user. Commit CID: %s", r.Commit.Cid)), nil
 	})
 
 	notificationTool := mcp.NewTool("readNotifications",
