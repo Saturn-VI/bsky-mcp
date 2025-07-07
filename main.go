@@ -650,37 +650,60 @@ func getSavedFeeds(ctx context.Context, c *xrpc.Client) (*appbsky.ActorDefs_Save
 func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 	str := ""
 	for _, post := range posts {
+		p := post.Post
+		fp := p.Record.Val.(*appbsky.FeedPost)
 		if post.Reason.FeedDefs_ReasonPin != nil {
-			str += fmt.Sprintf("Pinned post by %s (%s) with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
-				*post.Post.Author.DisplayName,
-				post.Post.Author.Did,
-				*post.Post.LikeCount,
-				*post.Post.QuoteCount,
-				*post.Post.ReplyCount,
-				post.Post.Uri,
-				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+			str += fmt.Sprintf("Pinned post by %s (%s)",
+				*p.Author.DisplayName,
+				p.Author.Did)
 		} else if post.Reason.FeedDefs_ReasonRepost != nil {
 			reposter := post.Reason.FeedDefs_ReasonRepost.By
-			str += fmt.Sprintf("%s (%s) reposted a post by %s (%s)  with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
+			str += fmt.Sprintf("%s (%s) reposted a post by %s (%s)",
 				*reposter.DisplayName,
 				reposter.Did,
-				*post.Post.Author.DisplayName,
-				post.Post.Author.Did,
-				*post.Post.LikeCount,
-				*post.Post.QuoteCount,
-				*post.Post.ReplyCount,
-				post.Post.Uri,
-				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+				*p.Author.DisplayName,
+				p.Author.Did)
 		} else {
-			str += fmt.Sprintf("Post by %s (DID %s) with %d likes, %d quotes, %d replies, and a URI of %s: %s\n",
-				*post.Post.Author.DisplayName,
-				post.Post.Author.Did,
-				*post.Post.LikeCount,
-				*post.Post.QuoteCount,
-				*post.Post.ReplyCount,
-				post.Post.Uri,
-				post.Post.Record.Val.(*appbsky.FeedPost).Text)
+			str += fmt.Sprintf("Post by %s (DID %s)",
+				*p.Author.DisplayName,
+				p.Author.Did)
+		}
+		str += fmt.Sprintf(" with %d likes, %d quotes, %d replies, a URI of %s, and a posting time of %s:\n",
+			*p.LikeCount,
+			*p.QuoteCount,
+			*p.ReplyCount,
+			p.Uri,
+			fp.CreatedAt,)
+		str += fmt.Sprintf("Text: %s\n", fp.Text)
+		if fp.Facets != nil {
+			str += "Facets:\n"
+			facets := generateFacetListFromPost(post)
+			for _, facet := range facets {
+				str += fmt.Sprintf("- %s\n", facet)
+			}
 		}
 	}
 	return str
+}
+
+func generateFacetListFromPost(post *appbsky.FeedDefs_FeedViewPost) []string {
+	var facets []string
+	if post.Post.Record.Val.(*appbsky.FeedPost).Facets != nil {
+		for _, facet := range post.Post.Record.Val.(*appbsky.FeedPost).Facets {
+			if facet.Features != nil {
+				for _, feature := range facet.Features {
+					if feature.RichtextFacet_Link != nil {
+						facets = append(facets, fmt.Sprintf("Link from byte %d to byte %d: %s", facet.Index.ByteStart, facet.Index.ByteEnd, feature.RichtextFacet_Link.Uri))
+					}
+					if feature.RichtextFacet_Mention != nil {
+						facets = append(facets, fmt.Sprintf("Mention from byte %d to byte %d: %s", facet.Index.ByteStart, facet.Index.ByteEnd, feature.RichtextFacet_Mention.Did))
+					}
+					if feature.RichtextFacet_Tag != nil {
+						facets = append(facets, fmt.Sprintf("Tag from byte %d to byte %d: %s", facet.Index.ByteStart, facet.Index.ByteEnd, feature.RichtextFacet_Tag.Tag))
+					}
+				}
+			}
+		}
+	}
+	return facets
 }
