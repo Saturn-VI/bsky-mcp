@@ -4,8 +4,8 @@
  - [x] createPost
  - [x] createRepost
  - [x] deletePost
- - [ ] likePost
- - [ ] unlikePost
+ - [x] likePost
+ - [x] unlikePost
  - [ ] followUser
  - [ ] unfollowUser
  - [x] readNotifications

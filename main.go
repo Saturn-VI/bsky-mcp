@@ -125,6 +125,86 @@ func main() {
 		return mcp.NewToolResultText(fmt.Sprintf("Successfully deleted post. Commit CID: %s", r.Commit.Cid)), nil
 	})
 
+	likePostTool := mcp.NewTool("likePost",
+		mcp.WithDescription("Like a Bluesky post"),
+		mcp.WithString("uri",
+			mcp.Required(),
+			mcp.Description("at-uri of post to like. must be a post."),
+		),
+	)
+
+	s.AddTool(likePostTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		uri, err := request.RequireString("uri")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		parsed, err := parseURI(uri)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error parsing URI: %s", err)), nil
+		}
+
+		like := &appbsky.FeedLike{
+			CreatedAt: syntax.DatetimeNow().String(),
+			Subject: &comatproto.RepoStrongRef{
+				Cid: parsed.rkey,
+				Uri: uri,
+			},
+		}
+		r, err := comatproto.RepoCreateRecord(ctx, c, &comatproto.RepoCreateRecord_Input{
+			Collection: "app.bsky.feed.like",
+			Record: &lexutil.LexiconTypeDecoder{
+				Val: like,
+			},
+			Repo: c.Auth.Did,
+		})
+
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully liked post. Commit CID: %s", r.Commit.Cid)), nil
+	})
+
+	unlikePostTool := mcp.NewTool("unlikePost",
+		mcp.WithDescription("Unlike a Bluesky post"),
+		mcp.WithString("uri",
+			mcp.Required(),
+			mcp.Description("at-uri of post to unlike. must be a post."),
+		),
+	)
+
+	s.AddTool(unlikePostTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		uri, err := request.RequireString("uri")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		posts, err := appbsky.FeedGetPosts(ctx, c, []string{uri})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting post: %s", err)), nil
+		}
+		if len(posts.Posts) == 0 {
+			return mcp.NewToolResultError(fmt.Sprintf("Post not found: %s", uri)), nil
+		}
+
+		post := posts.Posts[0]
+		if post.Viewer.Like == nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Post not liked: %s", uri)), nil
+		}
+		like := post.Viewer.Like
+
+		parsed, err := parseURI(*like)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error parsing like URI: %s", err)), nil
+		}
+		r, err := comatproto.RepoDeleteRecord(ctx, c, &comatproto.RepoDeleteRecord_Input{
+			Collection: parsed.collection,
+			Repo:       parsed.repo,
+			Rkey:       parsed.rkey,
+		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error deleting like: %s", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Successfully unliked post. Commit CID: %s", r.Commit.Cid)), nil
+	})
+
 	notificationTool := mcp.NewTool("readNotifications",
 		mcp.WithDescription("Reads notifications"),
 		mcp.WithString("cursor",
