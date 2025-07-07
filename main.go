@@ -325,6 +325,50 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
+	readProfileTool := mcp.NewTool("readProfile",
+		mcp.WithDescription("Reads a Bluesky profile."),
+		mcp.WithString("actor",
+			mcp.Required(),
+			mcp.Description("AT-identifier of the actor to read the profile from. Must be a valid Bluesky DID (e.g., did:plc:... or did:web:...)."),
+		),
+	)
+
+	s.AddTool(readProfileTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		actor, err := request.RequireString("actor")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		profile, err := appbsky.ActorGetProfile(ctx, c, actor)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting profile: %s", err)), nil
+		}
+
+		pronounsdiyDID := "did:plc:wkoofae5uytcm7bjncmev6n6"
+		labels, err := comatproto.LabelQueryLabels(ctx, c, "", 100, []string{pronounsdiyDID}, []string{actor})
+
+		verified := "No"
+		if profile.Verification.TrustedVerifierStatus == "valid" || profile.Verification.VerifiedStatus == "valid" {
+			verified = "Yes"
+		}
+
+		str := fmt.Sprintf("Profile of %s (%s):\n", *profile.DisplayName, profile.Did)
+		str += fmt.Sprintf("Handle: %s\n", profile.Handle)
+		str += fmt.Sprintf("Verified: %s", verified)
+		str += fmt.Sprintf("Bio: %s\n", *profile.Description)
+		str += fmt.Sprintf("Followers: %d\n", *profile.FollowersCount)
+		str += fmt.Sprintf("Following: %d\n", *profile.FollowsCount)
+		str += fmt.Sprintf("Posts: %d\n", *profile.PostsCount)
+
+		for _, label := range labels.Labels {
+			if label.Src == pronounsdiyDID {
+				str += fmt.Sprintf("Pronouns: %s\n", label.Val)
+			}
+		}
+
+		return mcp.NewToolResultText(str), nil
+	})
+
 	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
 }
 
