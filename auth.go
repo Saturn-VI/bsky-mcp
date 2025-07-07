@@ -44,7 +44,10 @@ func loadAuthSession(ctx context.Context, username *syntax.AtIdentifier, passwor
 		return nil, err
 	}
 
-	if did, _ := username.AsDID(); sess.DID != did {
+	if did, err := username.AsDID(); sess.DID != did {
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse username as DID: %w", err)
+		}
 		fmt.Println("Stored session identity does not match identity provided, recreating session")
 		sess, err = refreshAuthSession(ctx, *username, password, "", "")
 		if err != nil {
@@ -67,14 +70,14 @@ func loadAuthSession(ctx context.Context, username *syntax.AtIdentifier, passwor
 	if err != nil {
 		as, err := refreshAuthSession(ctx, *username, password, "", "")
 		if err != nil {
-			fmt.Println(err)
+			return nil, err
 		}
 		client.Host = as.PDS
 		client.Auth.AccessJwt = as.RefreshToken
 		client.Auth.RefreshJwt = as.RefreshToken
 		resp, err = comatproto.ServerRefreshSession(ctx, &client)
 		if err != nil {
-			fmt.Println(err)
+			return nil, err
 		}
 	}
 	client.Auth.AccessJwt = resp.AccessJwt
@@ -84,7 +87,6 @@ func loadAuthSession(ctx context.Context, username *syntax.AtIdentifier, passwor
 }
 
 func refreshAuthSession(ctx context.Context, username syntax.AtIdentifier, password, pdsURL, authFactorToken string) (*AuthSession, error) {
-
 	var did syntax.DID
 	// get pds url if not already
 	if pdsURL == "" {
@@ -104,7 +106,11 @@ func refreshAuthSession(ctx context.Context, username syntax.AtIdentifier, passw
 
 	// make sure that did has a did
 	if did == "" && username.IsDID() {
-		did, _ = username.AsDID()
+		d, err := username.AsDID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse username as DID: %w", err)
+		}
+		did = d
 	}
 
 	// unauthenticated client
@@ -164,6 +170,6 @@ func writeAuthSession(sess *AuthSession) error {
 }
 
 func userAgent() *string {
-	str := "goatposter v0.0.1"
+	str := fmt.Sprintf("Bluesky MCP Server v%s", Version)
 	return &str
 }

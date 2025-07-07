@@ -17,6 +17,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+var Version string = "1.0.0"
+
 func main() {
 
 	fmt.Println("running")
@@ -28,7 +30,7 @@ func main() {
 
 	s := server.NewMCPServer(
 		"Bluesky MCP Server",
-		"1.0.0", // why is the version number a string lmao
+		Version, // why is the version number a string lmao
 	)
 
 	ctx := context.Background()
@@ -88,7 +90,11 @@ func main() {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		r, err := createRecord(ctx, c, makeRepost(c, subj))
+		repost, err := makeRepost(c, subj)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error creating repost: %s", err)), nil
+		}
+		r, err := createRecord(ctx, c, repost)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error creating repost: %s", err)), nil
 		}
@@ -144,11 +150,16 @@ func main() {
 			return mcp.NewToolResultError(fmt.Sprintf("Error parsing URI: %s", err)), nil
 		}
 
+		likeTarget, err := comatproto.RepoGetRecord(ctx, c, "", parsed.collection, parsed.repo, parsed.rkey)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting post to like: %s", err)), nil
+		}
+
 		like := &appbsky.FeedLike{
 			CreatedAt: syntax.DatetimeNow().String(),
 			Subject: &comatproto.RepoStrongRef{
-				Cid: parsed.rkey,
-				Uri: uri,
+				Cid: *likeTarget.Cid,
+				Uri: likeTarget.Uri,
 			},
 		}
 		r, err := comatproto.RepoCreateRecord(ctx, c, &comatproto.RepoCreateRecord_Input{
@@ -158,6 +169,9 @@ func main() {
 			},
 			Repo: c.Auth.Did,
 		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error liking post: %s", err)), nil
+		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Successfully liked post. Commit CID: %s", r.Commit.Cid)), nil
 	})
@@ -230,6 +244,9 @@ func main() {
 			},
 			Repo: c.Auth.Did,
 		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error following user: %s", err)), nil
+		}
 
 		return mcp.NewToolResultText(fmt.Sprintf("Successfully followed user. Commit CID: %s", r.Commit.Cid)), nil
 	})
@@ -316,7 +333,11 @@ func main() {
 					fmt.Println("Error parsing URI:", err)
 					continue
 				}
-				replysubject, _ := comatproto.RepoGetRecord(ctx, c, reply.Reply.Parent.Cid, uri.collection, uri.repo, uri.rkey)
+				replysubject, err := comatproto.RepoGetRecord(ctx, c, reply.Reply.Parent.Cid, uri.collection, uri.repo, uri.rkey)
+				if err != nil {
+					fmt.Println("Error getting reply subject:", err)
+					continue
+				}
 				str += fmt.Sprintf("%s (%s) replied to your post (URI %s, contents %s) with: %s\n", *n.Author.DisplayName, n.Author.Did, reply.Reply.Parent.Uri, replysubject.Value.Val.(*appbsky.FeedPost).Text, reply.Text)
 			}
 		}
@@ -661,11 +682,11 @@ func makePost(ctx context.Context, c *xrpc.Client, m string) *comatproto.RepoCre
 	return p
 }
 
-func makeRepost(c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input {
+func makeRepost(c *xrpc.Client, subj string) (*comatproto.RepoCreateRecord_Input, error) {
 	uri, err := parseURI(subj)
 	if err != nil {
 		fmt.Println("Error parsing URI:", err)
-		return nil
+		return nil, err
 	}
 
 	r := &comatproto.RepoCreateRecord_Input{
@@ -682,7 +703,7 @@ func makeRepost(c *xrpc.Client, subj string) *comatproto.RepoCreateRecord_Input 
 		Repo: c.Auth.Did,
 	}
 
-	return r
+	return r, nil
 }
 
 func getFacetsFromString(ctx context.Context, c *xrpc.Client, s string) []*appbsky.RichtextFacet {
