@@ -17,6 +17,6 @@
  - [x] listSavedFeeds
  - [x] getFollowers
  - [x] getFollowing
- - [ ] getTrending
+ - [x] getTrending
  - [ ] searchPosts
  - [ ] searchUsers

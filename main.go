@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	comatproto "github.com/bluesky-social/indigo/api/atproto"
 	appbsky "github.com/bluesky-social/indigo/api/bsky"
@@ -643,6 +644,39 @@ func main() {
 			str += fmt.Sprintf("%s (%s) — %s\n", *follow.DisplayName, follow.Did, *follow.Description)
 		}
 
+		return mcp.NewToolResultText(str), nil
+	})
+
+	getTrendingTool := mcp.NewTool("getTrending",
+		mcp.WithDescription("Gets top trending categories, number of posts per category, time started, and status."),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of categories to get"),
+			mcp.DefaultNumber(5),
+		),
+	)
+
+	s.AddTool(getTrendingTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		limit := request.GetInt("limit", 5)
+		r, err := appbsky.UnspeccedGetTrends(ctx, c, int64(limit))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error getting trends: %s", err)), nil
+		}
+		if len(r.Trends) == 0 {
+			return mcp.NewToolResultText("No trends found."), nil
+		}
+		str := fmt.Sprintf("Top %d trending categories:\n", len(r.Trends))
+		for index, trend := range r.Trends {
+			splitstr := strings.Split(trend.Link, "/")
+			processedUri := fmt.Sprintf("at://did:plc:qrz3lhbyuxbeilrc6nekdqme/app.bsky.feed.generator/%s", splitstr[len(splitstr)-1])
+			str += fmt.Sprintf("Rank: %d, Name: %s, Category: %s, Posts: %d, Time Started: %s, Status: %s, URI: %s\n",
+				index + 1,
+				trend.DisplayName,
+				*trend.Category,
+				trend.PostCount,
+				trend.StartedAt,
+				*trend.Status,
+				processedUri)
+		}
 		return mcp.NewToolResultText(str), nil
 	})
 
