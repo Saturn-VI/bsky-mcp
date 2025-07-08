@@ -236,7 +236,7 @@ func main() {
 
 		follow := &appbsky.GraphFollow{
 			CreatedAt: syntax.DatetimeNow().String(),
-			Subject: did,
+			Subject:   did,
 		}
 		r, err := comatproto.RepoCreateRecord(ctx, c, &comatproto.RepoCreateRecord_Input{
 			Collection: follow.LexiconTypeID,
@@ -385,7 +385,7 @@ func main() {
 				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
 			}
 			posts = r.Feed
-			if (r.Cursor != nil) {
+			if r.Cursor != nil {
 				cursor = *r.Cursor
 			}
 		} else {
@@ -395,7 +395,7 @@ func main() {
 				return mcp.NewToolResultError(fmt.Sprintf("Error reading home feed: %s", err)), nil
 			}
 			posts = r.Feed
-			if (r.Cursor != nil) {
+			if r.Cursor != nil {
 				cursor = *r.Cursor
 			}
 		}
@@ -441,7 +441,7 @@ func main() {
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
 		}
-		if (r.Cursor != nil) {
+		if r.Cursor != nil {
 			cursor = *r.Cursor
 		}
 		posts = r.Feed
@@ -495,7 +495,7 @@ func main() {
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Error reading list feed: %s", err)), nil
 		}
-		if (r.Cursor != nil) {
+		if r.Cursor != nil {
 			cursor = *r.Cursor
 		}
 		posts = r.Feed
@@ -669,7 +669,7 @@ func main() {
 			splitstr := strings.Split(trend.Link, "/")
 			processedUri := fmt.Sprintf("at://did:plc:qrz3lhbyuxbeilrc6nekdqme/app.bsky.feed.generator/%s", splitstr[len(splitstr)-1])
 			str += fmt.Sprintf("Rank: %d, Name: %s, Category: %s, Posts: %d, Time Started: %s, Status: %s, URI: %s\n",
-				index + 1,
+				index+1,
 				trend.DisplayName,
 				*trend.Category,
 				trend.PostCount,
@@ -678,6 +678,117 @@ func main() {
 				processedUri)
 		}
 		return mcp.NewToolResultText(str), nil
+	})
+
+	searchPostsTool := mcp.NewTool("searchPosts",
+		mcp.WithDescription("Searches for posts containing a specific keyword or hashtag."),
+		mcp.WithString("q",
+			mcp.Required(),
+			mcp.Description("Search query string; syntax, phrase, boolean, and faceting is unspecified, but Lucene query syntax is recommended."),
+		),
+		mcp.WithString("sort",
+			mcp.Description("Specifies the ranking order of results. Possible values: [top, latest]. Default is 'latest'."),
+			mcp.DefaultString("latest"),
+			mcp.Enum("top", "latest"),
+		),
+		mcp.WithString("since",
+			mcp.Description("Filter results for posts after the indicated datetime (inclusive). Expected to use 'sortAt' timestamp, which may not match 'createdAt'. Can be a datetime, or just an ISO date (YYYY-MM-DD)."),
+		),
+		mcp.WithString("until",
+			mcp.Description("Filter results for posts before the indicated datetime (not inclusive). Expected to use 'sortAt' timestamp, which may not match 'createdAt'. Can be a datetime, or just an ISO date (YYYY-MM-DD)."),
+		),
+		mcp.WithString("mentions",
+			mcp.Description("Filter to posts which mention the given account. Handles are resolved to DID before query-time. Only matches rich-text facet mentions."),
+		),
+		mcp.WithString("author",
+			mcp.Description("Filter to posts by the given account. Handles are resolved to DID before query-time."),
+		),
+		mcp.WithString("lang",
+			mcp.Description("Filter to posts in the given language. Expected to be based on post language field, though server may override language detection."),
+		),
+		mcp.WithString("domain",
+			mcp.Description("Filter to posts with URLs (facet links or embeds) linking to the given domain (hostname). Server may apply hostname normalization."),
+		),
+		mcp.WithString("url",
+			mcp.Description("Filter to posts with links (facet links or embeds) pointing to this URL. Server may apply URL normalization or fuzzy matching."),
+		),
+		mcp.WithString("tag",
+			mcp.Description(" "),
+		),
+		mcp.WithArray("tags",
+			mcp.Description("Filter to posts with the given tag (hashtag), based on rich-text facet or tag field. Do not include the hash (#) prefix. Multiple tags can be specified, with 'AND' matching."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of results to return. Possible values: >= 1 and <= 100. Default is 25."),
+			mcp.DefaultNumber(25),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional pagination mechanism; may not necessarily allow scrolling through entire result set."),
+		),
+	)
+
+	s.AddTool(searchPostsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		q, err := request.RequireString("q")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		sort := request.GetString("sort", "latest")
+		since := request.GetString("since", "")
+		until := request.GetString("until", "")
+		mentions := request.GetString("mentions", "")
+		author := request.GetString("author", "")
+		lang := request.GetString("lang", "")
+		domain := request.GetString("domain", "")
+		url := request.GetString("url", "")
+		tags := request.GetStringSlice("tags", []string{})
+		limit := request.GetInt("limit", 25)
+		cursor := request.GetString("cursor", "")
+
+		r, err := appbsky.FeedSearchPosts(ctx, c, author, cursor, domain, lang, int64(limit), mentions, q, since, sort, tags, until, url)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error searching posts: %s", err)), nil
+		}
+
+		resultStr := fmt.Sprintf("Search Results (cursor: %s):\n", *r.Cursor)
+		resultStr += generateStringFromPostViews(&r.Posts)
+
+		return mcp.NewToolResultText(resultStr), nil
+	})
+
+	searchUsersTool := mcp.NewTool("searchUsers",
+		mcp.WithDescription("Searches for actors (users) by handle or display name."),
+		mcp.WithString("q",
+			mcp.Required(),
+			mcp.Description("Search query string; can be a handle (e.g., username) or display name."),
+		),
+		mcp.WithString("cursor",
+			mcp.Description("Optional pagination cursor to continue from a previous search."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Maximum number of results to return. Possible values: >= 1 and <= 100. Default is 25."),
+			mcp.DefaultNumber(25),
+		),
+	)
+
+	s.AddTool(searchUsersTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		q, err := request.RequireString("q")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		cursor := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 25)
+
+		r, err := appbsky.ActorSearchActors(ctx, c, cursor, int64(limit), q, "")
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error searching actors: %s", err)), nil
+		}
+
+		resultStr := fmt.Sprintf("Search Results (cursor: %s):\n", *r.Cursor)
+		for _, actor := range r.Actors {
+			resultStr += fmt.Sprintf("%s (%s) - %s\n", *actor.DisplayName, actor.Did, actor.Handle)
+		}
+
+		return mcp.NewToolResultText(resultStr), nil
 	})
 
 	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
@@ -891,11 +1002,11 @@ func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 			*p.QuoteCount,
 			*p.ReplyCount,
 			p.Uri,
-			fp.CreatedAt,)
+			fp.CreatedAt)
 		str += fmt.Sprintf("Text: %s\n", fp.Text)
 		if fp.Facets != nil {
 			str += "Facets:\n"
-			facets := generateFacetListFromPost(post)
+			facets := generateFacetListFromPost(fp)
 			for _, facet := range facets {
 				str += fmt.Sprintf("- %s\n", facet)
 			}
@@ -904,10 +1015,35 @@ func generateStringFromPosts(posts []*appbsky.FeedDefs_FeedViewPost) string {
 	return str
 }
 
-func generateFacetListFromPost(post *appbsky.FeedDefs_FeedViewPost) []string {
+func generateStringFromPostViews(postViews *[]*appbsky.FeedDefs_PostView) string {
+	str := ""
+	for _, postView := range *postViews {
+		p := postView
+		fp := postView.Record.Val.(*appbsky.FeedPost)
+		str += fmt.Sprintf("Post by %s (DID %s) with %d likes, %d quotes, %d replies, a URI of %s, and a posting time of %s:\n",
+			*p.Author.DisplayName,
+			p.Author.Did,
+			*p.LikeCount,
+			*p.QuoteCount,
+			*p.ReplyCount,
+			p.Uri,
+			fp.CreatedAt)
+		str += fmt.Sprintf("Text: %s\n", fp.Text)
+		if fp.Facets != nil {
+			str += "Facets:\n"
+			facets := generateFacetListFromPost(fp)
+			for _, facet := range facets {
+				str += fmt.Sprintf("- %s\n", facet)
+			}
+		}
+	}
+	return str
+}
+
+func generateFacetListFromPost(post *appbsky.FeedPost) []string {
 	var facets []string
-	if post.Post.Record.Val.(*appbsky.FeedPost).Facets != nil {
-		for _, facet := range post.Post.Record.Val.(*appbsky.FeedPost).Facets {
+	if post.Facets != nil {
+		for _, facet := range post.Facets {
 			if facet.Features != nil {
 				for _, feature := range facet.Features {
 					if feature.RichtextFacet_Link != nil {

@@ -18,5 +18,5 @@
  - [x] getFollowers
  - [x] getFollowing
  - [x] getTrending
- - [ ] searchPosts
- - [ ] searchUsers
+ - [x] searchPosts
+ - [x] searchUsers
