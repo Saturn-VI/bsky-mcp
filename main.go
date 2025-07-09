@@ -791,6 +791,7 @@ func main() {
 		return mcp.NewToolResultText(resultStr), nil
 	})
 
+	fmt.Println("Starting server...")
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Printf("Server error: %v\n", err)
 	}

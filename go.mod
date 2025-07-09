@@ -1,4 +1,4 @@
-module saturnvi/bskybot
+module saturnvi/bsky-mcp
 
 go 1.24
 
