@@ -35,8 +35,8 @@ func main() {
 	)
 
 	ctx := context.Background()
-	did := os.Getenv("DID")
-	password := os.Getenv("PASSWORD")
+	did := os.Getenv("ATPROTO_DID")
+	password := os.Getenv("ATPROTO_APP_PASSWORD")
 	username, err := syntax.ParseAtIdentifier(did)
 	if err != nil {
 		fmt.Println("Error loading auth session:", err)
