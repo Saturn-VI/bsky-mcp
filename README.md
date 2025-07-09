@@ -26,7 +26,7 @@
  - x86 Linux: `bsky-mcp-linux-amd64`
  - Intel Mac: `bsky-mcp-darwin-amd64`
  - M-Series (ARM) Mac: `bsky-mcp-darwin-arm64`
- - x86 Windows: `bsky-mcp-darwin-amd64`
+ - x86 Windows: `bsky-mcp-windows-amd64.exe`
 
  ### Building from source
  Requirements:
