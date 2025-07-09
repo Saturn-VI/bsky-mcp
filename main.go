@@ -507,7 +507,7 @@ func main() {
 	})
 
 	readLikedPostsTool := mcp.NewTool("readLikedPosts",
-		mcp.WithDescription("Reads a the liked posts of the logged in user."),
+		mcp.WithDescription("Reads the liked posts of the logged in user."),
 		mcp.WithString("cursor",
 			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
 		),
