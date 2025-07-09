@@ -22,11 +22,11 @@
  - [x] searchUsers - Searches users
 
 ## Installation
- Download the corresponding binary for your platform:
- - [x86 Linux](build/bsky-mcp-linux-amd64)
- - [Intel Mac](build/bsky-mcp-darwin-amd64)
- - [M-Series (ARM) Mac](build/bsky-mcp-darwin-arm64)
- - [x86 Windows](build/bsky-mcp-darwin-amd64)
+ Download the corresponding binary for your platform from the [releases page](https://github.com/Saturn-VI/bsky-mcp/releases/latest):
+ - x86 Linux: bsky-mcp-linux-amd64
+ - Intel Mac: bsky-mcp-darwin-amd64
+ - M-Series (ARM): Mac bsky-mcp-darwin-arm64
+ - x86 Windows: bsky-mcp-darwin-amd64
 
  ### Building from source
  Requirements:
@@ -71,19 +71,19 @@
   <summary>Where is claude_desktop_config.json?</summary>
 
  <br>
- 
+
   On MacOS:
-  
+
     ~/Library/Application Support/Claude/claude_desktop_config.json
-    
+
   On Windows:
 
     %APPDATA%\Claude\claude_desktop_config.json
-    
+
   On Linux:
-  
+
     ~/.config/Claude/claude_desktop_config.json
-    
+
   </details>
 
 ### Claude Code
@@ -117,13 +117,13 @@
   <summary>Where is settings.json?</summary>
 
    <br>
-   
+
   On MacOS/Linux:
-  
+
     ~/.config/gemini/settings.json
-    
+
   On Windows:
-  
+
     %USERPROFILE%\.gemini\settings.json
-    
+
   </details>
