@@ -506,6 +506,31 @@ func main() {
 		return mcp.NewToolResultText(str), nil
 	})
 
+	readLikedPostsTool := mcp.NewTool("readLikedPosts",
+		mcp.WithString("cursor",
+			mcp.Description("Optional cursor to paginate through posts. If not provided, will read the latest posts."),
+		),
+		mcp.WithNumber("limit",
+			mcp.Description("Optional limit on the number of posts to read. Default is 50."),
+		),
+	)
+
+	s.AddTool(readLikedPostsTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		cursorParam := request.GetString("cursor", "")
+		limit := request.GetInt("limit", 50)
+		r, err := appbsky.FeedGetActorLikes(ctx, c, c.Auth.Did, cursorParam, int64(limit))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Error reading liked posts: %s", err)), nil
+		}
+		if len(r.Feed) == 0 {
+			return mcp.NewToolResultText("No liked posts found."), nil
+		}
+		str := fmt.Sprintf("Liked posts (cursor: %s):\n", *r.Cursor)
+		str += generateStringFromPosts(r.Feed)
+
+		return mcp.NewToolResultText(str), nil
+	})
+
 	readProfileTool := mcp.NewTool("readProfile",
 		mcp.WithDescription("Reads a Bluesky profile."),
 		mcp.WithString("actor",

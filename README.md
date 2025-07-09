@@ -1,6 +1,6 @@
-# bluesky MCP (WIP)
+# Bluesky MCP Server
 
-## tools:
+## Tools:
  - [x] createPost
  - [x] createRepost
  - [x] deletePost
@@ -12,7 +12,7 @@
  - [x] readFeed
  - [x] readListFeed
  - [x] readAuthorFeed
- - [ ] readLikedPosts
+ - [x] readLikedPosts
  - [x] readProfile
  - [x] listSavedFeeds
  - [x] getFollowers
@@ -20,3 +20,5 @@
  - [x] getTrending
  - [x] searchPosts
  - [x] searchUsers
+
+## Installation / Usage
