@@ -81,6 +81,7 @@
     ```
     ~/.config/Claude/claude_desktop_config.json
     ```
+  </details>
 
 ### Claude Code
   Run the following from the command line:
