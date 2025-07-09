@@ -791,7 +791,9 @@ func main() {
 		return mcp.NewToolResultText(resultStr), nil
 	})
 
-	// createRecord(ctx, c, makePost(ctx, c, "test https://pdsls.dev @bsky.app #testtag !"))
+	if err := server.ServeStdio(s); err != nil {
+		fmt.Printf("Server error: %v\n", err)
+	}
 }
 
 type URI struct {
