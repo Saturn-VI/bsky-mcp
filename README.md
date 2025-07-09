@@ -36,7 +36,7 @@
   ```bash
   $ go build .
   ```
-  Building for all platforms is currently done through a bash script (and also requires Go):
+  Building for all platforms is currently done through a bash script:
   ```bash
   $ ./build.sh
   ```
