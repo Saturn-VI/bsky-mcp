@@ -69,18 +69,21 @@
   ```
   <details>
   <summary>Where is claude_desktop_config.json?</summary>
+
+ <br>
+ 
   On MacOS:
-    ```
+  
     ~/Library/Application Support/Claude/claude_desktop_config.json
-    ```
+    
   On Windows:
-    ```
+
     %APPDATA%\Claude\claude_desktop_config.json
-    ```
+    
   On Linux:
-    ```
+  
     ~/.config/Claude/claude_desktop_config.json
-    ```
+    
   </details>
 
 ### Claude Code
@@ -112,12 +115,15 @@
   ```
   <details>
   <summary>Where is settings.json?</summary>
+
+   <br>
+   
   On MacOS/Linux:
-    ```
+  
     ~/.config/gemini/settings.json
-    ```
+    
   On Windows:
-    ```
+  
     %USERPROFILE%\.gemini\settings.json
-    ```
+    
   </details>
