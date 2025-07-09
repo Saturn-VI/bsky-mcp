@@ -36,3 +36,5 @@ auth-session.json
 
 # idk what this is?
 .ropeproject/
+
+build/*
